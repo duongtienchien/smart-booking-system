@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Admin Check-in Scanner | Smart Booking System</title>
+  <meta name="description" content="Giao diện quét mã QR Check-in dành cho Admin. Xác minh vé đặt lịch sân thể thao và phòng họp."/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <!-- html5-qrcode CDN -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    body { background: var(--bg-base); }
+
+    .admin-layout { max-width: 960px; margin: 0 auto; padding: 0 24px 48px; }
+
+    /* Admin badge */
+    .admin-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-full); font-size: 0.82rem; font-weight: 600; color: var(--color-danger); margin-bottom: 12px; }
+
+    /* Scanner card */
+    .scanner-card { padding: 28px; }
+    .scanner-box {
+      position: relative; border-radius: var(--radius-lg); overflow: hidden;
+      background: #000; aspect-ratio: 4/3; max-height: 400px;
+      border: 2px solid var(--border-normal);
+    }
+    #qrScanner { width: 100%; height: 100%; }
+    .scan-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .scan-frame {
+      width: 200px; height: 200px; position: relative;
+    }
+    .scan-frame::before,.scan-frame::after,
+    .scan-frame > span:nth-child(1)::before,
+    .scan-frame > span:nth-child(1)::after {
+      content: ''; position: absolute; width: 24px; height: 24px; border-color: var(--color-primary); border-style: solid;
+    }
+    .scan-frame::before { top: 0; left: 0; border-width: 3px 0 0 3px; }
+    .scan-frame::after  { top: 0; right: 0; border-width: 3px 3px 0 0; }
+    .scan-frame > span:nth-child(1)::before { bottom: 0; left: 0; border-width: 0 0 3px 3px; }
+    .scan-frame > span:nth-child(1)::after  { bottom: 0; right: 0; border-width: 0 3px 3px 0; }
+    .scan-line {
+      position: absolute; left: 10px; right: 10px; height: 2px; top: 50%;
+      background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+      animation: scan-move 2s ease-in-out infinite;
+    }
+    @keyframes scan-move {
+      0%   { top: 10%; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { top: 90%; opacity: 0; }
+    }
+    .scan-hint { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.7); font-size: 0.82rem; }
+
+    .scanner-controls { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+
+    /* Camera selector */
+    .camera-select-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* Result area */
+    .result-area { display: flex; flex-direction: column; gap: 16px; }
+
+    /* Scan result card */
+    .scan-result {
+      border-radius: var(--radius-lg); padding: 24px; border: 2px solid transparent;
+      animation: fadeInUp 0.35s ease;
+    }
+    .scan-result.success { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.35); }
+    .scan-result.error   { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.35); }
+    .scan-result.warning { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.35); }
+
+    .scan-status-icon { font-size: 2.5rem; margin-bottom: 10px; text-align: center; }
+    .scan-status-title { font-size: 1.2rem; font-weight: 700; text-align: center; }
+    .scan-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    @media(max-width:480px){ .scan-detail-grid{ grid-template-columns:1fr; } }
+    .scan-detail-item { padding: 10px 14px; background: rgba(255,255,255,0.04); border-radius: var(--radius-sm); }
+    .scan-detail-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .scan-detail-value { font-size: 0.9rem; font-weight: 600; margin-top: 3px; color: var(--text-primary); }
+
+    /* History */
+    .history-list { display: flex; flex-direction: column; gap: 10px; }
+    .history-item { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); }
+    .history-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+    .history-icon.success { background: rgba(34,197,94,0.15); }
+    .history-icon.error   { background: rgba(239,68,68,0.15); }
+    .history-code { font-weight: 700; font-size: 0.9rem; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .history-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .history-time { margin-left: auto; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media(max-width:540px){ .stats-grid{ grid-template-columns:1fr 1fr; } }
+    .stat-card { padding: 18px; text-align: center; }
+    .stat-num { font-size: 2rem; font-weight: 800; }
+    .stat-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* Placeholder state */
+    .scanner-placeholder { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .scanner-placeholder .ph-icon { font-size: 3rem; margin-bottom: 14px; }
+
+    /* pulse animation on active scan */
+    .active-scanning { animation: pulseGlow 2s infinite; }
+    @keyframes pulseGlow {
+      0%,100%{box-shadow:0 0 0 0 rgba(108,99,255,0);}
+      50%{box-shadow:0 0 0 8px rgba(108,99,255,0.15);}
+    }
+  </style>
+</head>
+<body>
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/index.html" class="navbar-brand">
+      <div class="logo-icon">⚡</div>
+      SmartBook
+    </a>
+    <div class="navbar-links">
+      <a href="/index.html" id="nav-calendar">📅 Đặt lịch</a>
+      <a href="/checkout.html" id="nav-checkout">🛒 Thanh toán</a>
+      <a href="/admin-scan.html" class="active" id="nav-admin">🛡️ Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="page-hero">
+  <div style="position:relative;z-index:1;">
+    <div class="admin-badge">🛡️ Khu vực Quản trị</div>
+    <h1>Admin <span class="gradient-text">Check-in Scanner</span></h1>
+    <p style="margin-top:10px;max-width:480px;margin-left:auto;margin-right:auto;">Quét mã QR vé để xác nhận check-in. Kết quả hiện thị tức thì và được ghi vào lịch sử.</p>
+  </div>
+</div>
+
+<div class="admin-layout">
+  <!-- Stats -->
+  <div class="stats-grid" style="margin-bottom:24px;">
+    <div class="glass-card stat-card">
+      <div class="stat-num gradient-text" id="statTotal">0</div>
+      <div class="stat-label">Tổng lượt quét</div>
+    </div>
+    <div class="glass-card stat-card">
+      <div class="stat-num" style="color:var(--color-success);" id="statSuccess">0</div>
+      <div class="stat-label">Check-in thành công</div>
+    </div>
+    <div class="glass-card stat-card">
+      <div class="stat-num" style="color:var(--color-danger);" id="statFail">0</div>
+      <div class="stat-label">Không hợp lệ</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <!-- Scanner panel -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="glass-card scanner-card">
+        <h3 style="margin-bottom:16px;font-size:1rem;">📷 Camera Scanner</h3>
+
+        <!-- Camera selector -->
+        <div class="camera-select-wrap" style="margin-bottom:14px;">
+          <label class="form-label" for="cameraSelect" style="white-space:nowrap;">🎥 Camera:</label>
+          <select class="form-select" id="cameraSelect" style="flex:1;"></select>
+        </div>
+
+        <!-- Scanner box -->
+        <div class="scanner-box" id="scannerBox">
+          <div id="qrScanner"></div>
+          <div class="scan-overlay" id="scanOverlay">
+            <div class="scan-frame">
+              <span></span>
+              <div class="scan-line"></div>
+            </div>
+          </div>
+          <div class="scan-hint" id="scanHint">Di chuyển camera đến mã QR</div>
+        </div>
+
+        <div class="scanner-controls">
+          <button class="btn btn-primary" id="startBtn" onclick="startScanner()">▶ Bắt đầu quét</button>
+          <button class="btn btn-danger" id="stopBtn" onclick="stopScanner()" style="display:none;">⏹ Dừng</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleFlash()" id="flashBtn" style="display:none;" title="Bật/tắt đèn flash">🔦</button>
+          <button class="btn btn-ghost btn-sm" onclick="switchCamera()" id="switchBtn" style="display:none;" title="Đổi camera">🔄</button>
+        </div>
+
+        <!-- Manual input fallback -->
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">⌨️ Nhập mã thủ công (dự phòng)</div>
+          <div style="display:flex;gap:8px;">
+            <input class="form-input" id="manualCode" placeholder="Nhập mã đặt lịch (VD: SB-ABC123)" style="font-size:0.9rem;" onkeydown="if(event.key==='Enter')manualCheck()"/>
+            <button class="btn btn-outline btn-sm" onclick="manualCheck()">Kiểm tra</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result & History panel -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <!-- Scan Result -->
+      <div class="glass-card" style="padding:24px;">
+        <h3 style="margin-bottom:16px;font-size:1rem;">📊 Kết quả quét</h3>
+        <div id="scanResultArea">
+          <div class="scanner-placeholder">
+            <div class="ph-icon">🔍</div>
+            <div style="font-weight:600;">Chưa có kết quả</div>
+            <div style="font-size:0.82rem;margin-top:6px;">Bắt đầu quét mã QR để xem kết quả</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="glass-card" style="padding:24px;flex:1;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:1rem;">🕐 Lịch sử Check-in</h3>
+          <button class="btn btn-ghost btn-sm" onclick="clearHistory()">🗑️ Xóa</button>
+        </div>
+        <div id="historyList">
+          <div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">Chưa có lịch sử quét</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/scanner.js"></script>
+</body>
+</html>

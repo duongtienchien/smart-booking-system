@@ -1,0 +1,263 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Đặt lịch sân | Smart Booking System</title>
+  <meta name="description" content="Xem lịch và chọn khung giờ đặt sân thể thao / phòng họp trực tuyến nhanh chóng, tiện lợi."/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    /* ---- Calendar Page Specific ---- */
+    .cal-wrapper { display: grid; grid-template-columns: 300px 1fr; gap: 28px; padding: 0 24px 48px; max-width: 1280px; margin: 0 auto; }
+    @media(max-width:900px){ .cal-wrapper{ grid-template-columns:1fr; } }
+
+    /* Sidebar */
+    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+    /* Venue selector */
+    .venue-card { padding: 20px; cursor: pointer; border: 2px solid transparent; transition: all var(--transition); }
+    .venue-card.selected { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary), var(--shadow-glow); }
+    .venue-card:hover:not(.selected) { border-color: var(--border-normal); transform: translateY(-2px); }
+    .venue-icon { font-size: 2rem; margin-bottom: 8px; }
+    .venue-name { font-weight: 700; font-size: 1rem; }
+    .venue-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .venue-price { font-size: 0.9rem; font-weight: 600; color: var(--color-primary-light); margin-top: 6px; }
+    .venue-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Mini calendar */
+    .mini-calendar { padding: 20px; }
+    .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cal-nav-btn { width: 32px; height: 32px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.07); border: 1px solid var(--border-subtle); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition); font-size: 1rem; }
+    .cal-nav-btn:hover { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    .cal-month-title { font-weight: 700; font-size: 1rem; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .cal-day-header { text-align: center; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); padding: 4px 0; }
+    .cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 0.82rem; cursor: pointer; transition: all var(--transition); position: relative; }
+    .cal-day:hover:not(.empty):not(.past) { background: rgba(108,99,255,0.2); color: var(--color-primary-light); }
+    .cal-day.today { font-weight: 700; color: var(--color-primary-light); }
+    .cal-day.today::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--color-primary); }
+    .cal-day.selected { background: var(--color-primary); color: #fff; font-weight: 700; box-shadow: 0 2px 10px rgba(108,99,255,0.5); }
+    .cal-day.past { opacity: 0.3; cursor: not-allowed; }
+    .cal-day.empty { cursor: default; }
+    .cal-day.has-booking::before { content: ''; position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--color-warning); }
+
+    /* Main area */
+    .main-area { display: flex; flex-direction: column; gap: 24px; }
+
+    /* Time grid */
+    .timegrid-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .date-display { font-size: 1.3rem; font-weight: 700; }
+    .legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-secondary); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .ld-available { background: linear-gradient(135deg, var(--color-success), #16A34A); }
+    .ld-booked    { background: rgba(239,68,68,0.7); }
+    .ld-maintenance { background: rgba(245,158,11,0.7); }
+    .ld-selected  { background: linear-gradient(135deg, var(--color-primary), #9B5DE5); }
+
+    .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; padding: 20px; }
+    .time-slot {
+      padding: 14px 10px; border-radius: var(--radius-md); text-align: center;
+      cursor: pointer; transition: all var(--transition); position: relative;
+      border: 2px solid transparent; user-select: none;
+    }
+    .time-slot.available {
+      background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.25); color: var(--text-primary);
+    }
+    .time-slot.available:hover {
+      background: rgba(34,197,94,0.2); border-color: var(--color-success); transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(34,197,94,0.25);
+    }
+    .time-slot.selected {
+      background: linear-gradient(135deg, rgba(108,99,255,0.3), rgba(155,93,229,0.2));
+      border-color: var(--color-primary); color: var(--text-primary);
+      box-shadow: 0 4px 20px rgba(108,99,255,0.3), animation: pulseGlow 2s infinite;
+    }
+    .time-slot.booked {
+      background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.15);
+      color: var(--text-muted); cursor: not-allowed;
+    }
+    .time-slot.maintenance {
+      background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.15);
+      color: var(--text-muted); cursor: not-allowed;
+    }
+    .slot-time { font-size: 0.85rem; font-weight: 600; display: block; }
+    .slot-duration { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+    .slot-price { font-size: 0.78rem; font-weight: 600; margin-top: 4px; }
+    .slot-price.available { color: var(--color-success); }
+    .slot-badge {
+      position: absolute; top: 5px; right: 5px;
+      font-size: 0.65rem; padding: 2px 6px; border-radius: var(--radius-full);
+    }
+    .slot-badge.booked { background: rgba(239,68,68,0.2); color: var(--color-danger); }
+    .slot-badge.maintenance { background: rgba(245,158,11,0.2); color: var(--color-warning); }
+
+    /* Booking summary */
+    .summary-panel { padding: 24px; }
+    .summary-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+    .summary-empty { text-align: center; color: var(--text-muted); padding: 20px 0; font-size: 0.9rem; }
+    .summary-items { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .summary-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: rgba(255,255,255,0.04);
+      border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);
+    }
+    .si-label { font-size: 0.85rem; color: var(--text-secondary); }
+    .si-value { font-size: 0.9rem; font-weight: 600; }
+    .si-remove { background: none; border: none; color: var(--color-danger); cursor: pointer; font-size: 0.85rem; opacity: 0.7; transition: opacity var(--transition); }
+    .si-remove:hover { opacity: 1; }
+    .summary-total { display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+    .total-label { font-weight: 600; font-size: 0.95rem; }
+    .total-amount { font-size: 1.5rem; font-weight: 800; }
+    .total-amount span { font-size: 0.85rem; font-weight: 500; color: var(--text-muted); }
+
+    /* Loading skeleton */
+    .skeleton { background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255,255,255,0.05) 50%, var(--bg-elevated) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
+    @keyframes shimmer { 0%{background-position:200% 0;}100%{background-position:-200% 0;} }
+
+    /* Step indicator */
+    .step-bar { display: flex; align-items: center; gap: 0; margin-bottom: 28px; }
+    .step-item { display: flex; align-items: center; gap: 8px; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; border: 2px solid var(--border-normal); color: var(--text-muted); transition: all var(--transition); }
+    .step-label { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+    .step-item.active .step-num { background: var(--color-primary); border-color: var(--color-primary); color: #fff; box-shadow: 0 0 12px rgba(108,99,255,0.5); }
+    .step-item.active .step-label { color: var(--text-primary); font-weight: 600; }
+    .step-item.done .step-num { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+    .step-connector { width: 40px; height: 2px; background: var(--border-subtle); margin: 0 4px; }
+    .step-connector.done { background: var(--color-success); }
+  </style>
+</head>
+<body>
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/index.html" class="navbar-brand">
+      <div class="logo-icon">⚡</div>
+      SmartBook
+    </a>
+    <div class="navbar-links">
+      <a href="/index.html" class="active" id="nav-calendar">📅 Đặt lịch</a>
+      <a href="/checkout.html" id="nav-checkout">🛒 Thanh toán</a>
+      <a href="/admin-scan.html" id="nav-admin">🛡️ Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="page-hero">
+  <div style="position:relative;z-index:1;">
+    <div class="badge badge-primary" style="margin-bottom:12px;">🏟️ Đặt lịch trực tuyến</div>
+    <h1>Chọn <span class="gradient-text">Sân & Khung giờ</span></h1>
+    <p style="margin-top:10px;max-width:520px;margin-left:auto;margin-right:auto;">Xem lịch theo ngày, chọn loại sân thể thao hoặc phòng họp, và đặt khung giờ phù hợp trong vài giây.</p>
+  </div>
+</div>
+
+<!-- Step bar -->
+<div class="container">
+  <div class="step-bar">
+    <div class="step-item active">
+      <div class="step-num">1</div>
+      <div class="step-label">Chọn Sân & Giờ</div>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item" id="step2">
+      <div class="step-num">2</div>
+      <div class="step-label">Thanh toán</div>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-label">Xác nhận</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main layout -->
+<div class="cal-wrapper">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <!-- Venue selector -->
+    <div>
+      <h3 style="margin-bottom:14px;font-size:1rem;">🏟️ Chọn Loại Sân / Phòng</h3>
+      <div class="venue-grid" id="venueGrid"></div>
+    </div>
+
+    <!-- Mini calendar -->
+    <div class="glass-card mini-calendar">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" id="prevMonth" aria-label="Tháng trước">&#8249;</button>
+        <span class="cal-month-title" id="calMonthTitle"></span>
+        <button class="cal-nav-btn" id="nextMonth" aria-label="Tháng sau">&#8250;</button>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-day-header">CN</div>
+        <div class="cal-day-header">T2</div>
+        <div class="cal-day-header">T3</div>
+        <div class="cal-day-header">T4</div>
+        <div class="cal-day-header">T5</div>
+        <div class="cal-day-header">T6</div>
+        <div class="cal-day-header">T7</div>
+      </div>
+      <div class="cal-grid" id="calDayGrid" style="margin-top:4px;"></div>
+    </div>
+
+    <!-- Info box -->
+    <div class="glass-card" style="padding:18px;">
+      <h4 style="font-size:0.95rem;margin-bottom:10px;">ℹ️ Thông tin</h4>
+      <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.8;">
+        <div>📍 Địa chỉ: 123 Đường Thể Thao, Q.3, TP.HCM</div>
+        <div>⏰ Giờ mở: 06:00 – 22:00</div>
+        <div>📞 Hotline: 1800 6868</div>
+        <div style="margin-top:8px;padding:8px 10px;background:rgba(108,99,255,0.1);border-radius:8px;color:var(--color-primary-light);">
+          💡 Chọn khung giờ rồi bấm <strong>"Đặt ngay"</strong>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-area">
+    <!-- Time grid card -->
+    <div class="glass-card" style="overflow:hidden;">
+      <div class="timegrid-header" style="padding:20px 20px 16px;">
+        <div>
+          <div class="date-display" id="displayDate">Đang tải...</div>
+          <div id="venueLabel" style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot ld-available"></div>Trống</div>
+          <div class="legend-item"><div class="legend-dot ld-selected"></div>Đã chọn</div>
+          <div class="legend-item"><div class="legend-dot ld-booked"></div>Đã đặt</div>
+          <div class="legend-item"><div class="legend-dot ld-maintenance"></div>Bảo trì</div>
+        </div>
+      </div>
+      <div class="time-grid" id="timeGrid">
+        <!-- Slots rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="glass-card summary-panel">
+      <div class="summary-title">🛒 Tóm tắt đặt lịch</div>
+      <div id="summaryEmpty" class="summary-empty">Chưa chọn khung giờ nào</div>
+      <div id="summaryItems" class="summary-items" style="display:none;"></div>
+      <div id="summaryTotal" class="summary-total" style="display:none;">
+        <div>
+          <div class="total-label">Tổng thanh toán</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">Bao gồm VAT</div>
+        </div>
+        <div class="total-amount gradient-text" id="totalAmount">0 <span>đ</span></div>
+      </div>
+      <button class="btn btn-primary w-full btn-lg" id="bookBtn" style="margin-top:20px;display:none;" onclick="proceedToCheckout()">
+        ⚡ Đặt ngay →
+      </button>
+    </div>
+  </main>
+</div>
+
+<script src="/js/calendar.js"></script>
+</body>
+</html>
