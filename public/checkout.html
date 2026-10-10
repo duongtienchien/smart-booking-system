@@ -1,0 +1,286 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Thanh toán | Smart Booking System</title>
+  <meta name="description" content="Hoàn tất đặt lịch sân thể thao và phòng họp. Thanh toán nhanh qua VietQR, MoMo hoặc tại sân."/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <style>
+    .checkout-grid { display: grid; grid-template-columns: 1fr 420px; gap: 28px; padding: 0 24px 48px; max-width: 1280px; margin: 0 auto; }
+    @media(max-width:900px){ .checkout-grid{ grid-template-columns:1fr; } }
+
+    /* Payment method cards */
+    .pay-methods { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+    .pay-card { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: var(--radius-md); border: 2px solid var(--border-normal); cursor: pointer; transition: all var(--transition); background: rgba(255,255,255,0.03); }
+    .pay-card:hover { border-color: var(--color-primary); background: rgba(108,99,255,0.06); }
+    .pay-card.selected { border-color: var(--color-primary); background: rgba(108,99,255,0.1); box-shadow: 0 0 0 1px rgba(108,99,255,0.3); }
+    .pay-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-normal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all var(--transition); }
+    .pay-card.selected .pay-radio { border-color: var(--color-primary); }
+    .pay-card.selected .pay-radio::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--color-primary); display: block; }
+    .pay-icon { font-size: 1.8rem; flex-shrink: 0; }
+    .pay-label { font-weight: 600; font-size: 0.95rem; }
+    .pay-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    .pay-tag { margin-left: auto; }
+
+    /* Order summary */
+    .order-card { padding: 24px; position: sticky; top: 84px; }
+    .order-header { font-size: 1.1rem; font-weight: 700; margin-bottom: 18px; }
+    .order-venue { display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(108,99,255,0.08); border-radius: var(--radius-md); margin-bottom: 16px; border: 1px solid rgba(108,99,255,0.2); }
+    .order-venue-icon { font-size: 2rem; }
+    .order-slot-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .order-slot-item { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); }
+    .order-slot-time { color: var(--text-secondary); }
+    .order-slot-price { font-weight: 600; color: var(--color-primary-light); }
+    .order-total { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; }
+    .order-total-num { font-size: 1.6rem; font-weight: 800; }
+
+    /* Countdown */
+    .countdown-wrap { text-align: center; padding: 16px 0 8px; }
+    .countdown-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
+    .countdown-timer { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--color-warning); letter-spacing: 2px; }
+    .countdown-timer.urgent { color: var(--color-danger); animation: countdown-tick 1s ease infinite; }
+    @keyframes countdown-tick{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.05);} }
+
+    /* QR section in modal */
+    .qr-wrap { text-align: center; padding: 20px; background: #fff; border-radius: var(--radius-lg); display: inline-block; }
+    .qr-wrap img { width: 200px; height: 200px; display: block; }
+    .vietqr-logo { margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; font-size: 1.1rem; color: #0066CC; }
+
+    /* Success modal */
+    .success-ticket { background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.03)); border: 1px solid rgba(34,197,94,0.3); border-radius: var(--radius-lg); padding: 20px; text-align: center; }
+    .ticket-code { font-size: 1.8rem; font-weight: 800; letter-spacing: 4px; color: var(--color-success); font-variant-numeric: tabular-nums; }
+    .ticket-meta { font-size: 0.82rem; color: var(--text-secondary); margin-top: 8px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:520px){ .form-grid{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/index.html" class="navbar-brand">
+      <div class="logo-icon">⚡</div>
+      SmartBook
+    </a>
+    <div class="navbar-links">
+      <a href="/index.html" id="nav-calendar">📅 Đặt lịch</a>
+      <a href="/checkout.html" class="active" id="nav-checkout">🛒 Thanh toán</a>
+      <a href="/admin-scan.html" id="nav-admin">🛡️ Admin</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<div class="page-hero">
+  <div style="position:relative;z-index:1;">
+    <div class="badge badge-primary" style="margin-bottom:12px;">💳 Bước 2 / 3</div>
+    <h1>Thanh toán &amp; <span class="gradient-text">Xác nhận</span></h1>
+    <p style="margin-top:10px;max-width:500px;margin-left:auto;margin-right:auto;">Điền thông tin và chọn phương thức thanh toán. Vé QR sẽ gửi ngay sau khi xác nhận.</p>
+  </div>
+</div>
+
+<!-- Step bar -->
+<div class="container">
+  <div class="step-bar">
+    <div class="step-item done">
+      <div class="step-num">✓</div>
+      <div class="step-label">Chọn Sân & Giờ</div>
+    </div>
+    <div class="step-connector done"></div>
+    <div class="step-item active">
+      <div class="step-num">2</div>
+      <div class="step-label">Thanh toán</div>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-label">Xác nhận</div>
+    </div>
+  </div>
+  <style>
+    .step-bar { display: flex; align-items: center; gap: 0; margin-bottom: 28px; }
+    .step-item { display: flex; align-items: center; gap: 8px; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; border: 2px solid var(--border-normal); color: var(--text-muted); transition: all var(--transition); }
+    .step-label { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+    .step-item.active .step-num { background: var(--color-primary); border-color: var(--color-primary); color: #fff; box-shadow: 0 0 12px rgba(108,99,255,0.5); }
+    .step-item.active .step-label { color: var(--text-primary); font-weight: 600; }
+    .step-item.done .step-num { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+    .step-item.done .step-label { color: var(--color-success); font-weight: 600; }
+    .step-connector { width: 40px; height: 2px; background: var(--border-subtle); margin: 0 4px; }
+    .step-connector.done { background: var(--color-success); }
+  </style>
+</div>
+
+<div class="checkout-grid">
+  <!-- Left: Form -->
+  <div style="display:flex;flex-direction:column;gap:24px;">
+    <!-- Customer info -->
+    <div class="glass-card" style="padding:28px;">
+      <h3 style="margin-bottom:20px;font-size:1.1rem;">👤 Thông tin khách hàng</h3>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="fullName">Họ và tên *</label>
+            <input class="form-input" type="text" id="fullName" placeholder="Nguyễn Văn A" required/>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="phone">Số điện thoại *</label>
+            <input class="form-input" type="tel" id="phone" placeholder="0901 234 567" required/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input class="form-input" type="email" id="email" placeholder="email@example.com"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="note">Ghi chú</label>
+          <textarea class="form-textarea" id="note" rows="2" placeholder="Ghi chú thêm (nếu có)..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment methods -->
+    <div class="glass-card" style="padding:28px;">
+      <h3 style="margin-bottom:20px;font-size:1.1rem;">💳 Phương thức thanh toán</h3>
+      <div class="pay-methods" id="payMethods">
+        <div class="pay-card selected" data-method="vietqr" onclick="selectPayMethod(this,'vietqr')">
+          <div class="pay-radio"></div>
+          <div class="pay-icon">🏦</div>
+          <div><div class="pay-label">Chuyển khoản VietQR</div><div class="pay-desc">Quét mã QR — Hỗ trợ 40+ ngân hàng</div></div>
+          <div class="pay-tag"><span class="badge badge-success">Phổ biến</span></div>
+        </div>
+        <div class="pay-card" data-method="momo" onclick="selectPayMethod(this,'momo')">
+          <div class="pay-radio"></div>
+          <div class="pay-icon">💜</div>
+          <div><div class="pay-label">Ví MoMo</div><div class="pay-desc">Thanh toán qua ứng dụng MoMo</div></div>
+          <div class="pay-tag"><span class="badge badge-primary">Nhanh</span></div>
+        </div>
+        <div class="pay-card" data-method="cash" onclick="selectPayMethod(this,'cash')">
+          <div class="pay-radio"></div>
+          <div class="pay-icon">💵</div>
+          <div><div class="pay-label">Thanh toán tại sân</div><div class="pay-desc">Trả tiền mặt hoặc POS khi đến</div></div>
+        </div>
+      </div>
+
+      <!-- VietQR section -->
+      <div id="vietqrSection" style="padding:20px;background:rgba(255,255,255,0.03);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="text-align:center;">
+            <div class="vietqr-logo">🏦 VietQR</div>
+            <div class="qr-wrap" id="qrCodeWrap">
+              <div id="qrCodeImg" style="width:180px;height:180px;display:flex;align-items:center;justify-content:center;font-size:3rem;">⏳</div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:0.85rem;color:var(--text-secondary);line-height:2;">
+              <div>🏦 Ngân hàng: <strong style="color:var(--text-primary);">MBBank</strong></div>
+              <div>💳 Số TK: <strong style="color:var(--text-primary);font-size:1rem;" id="bankAccount">0901234567890</strong></div>
+              <div>👤 Chủ TK: <strong style="color:var(--text-primary);">SMARTBOOK JSC</strong></div>
+              <div id="transferContent">📝 Nội dung: <strong style="color:var(--color-primary-light);">Đang tải...</strong></div>
+            </div>
+            <div style="margin-top:12px;padding:10px 14px;background:rgba(245,158,11,0.1);border-radius:var(--radius-sm);border-left:3px solid var(--color-warning);">
+              <div style="font-size:0.8rem;color:var(--color-warning);font-weight:600;">⚠️ Lưu ý quan trọng</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Nhập đúng nội dung chuyển khoản. Slot giữ trong <strong id="holdMinutes">10 phút</strong>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="momoSection" style="display:none;padding:16px;background:rgba(155,77,202,0.08);border-radius:var(--radius-md);border:1px solid rgba(155,77,202,0.2);">
+        <div style="text-align:center;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">💜</div>
+          <div style="font-weight:700;font-size:1.1rem;">Ví MoMo</div>
+          <div style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">Số điện thoại MoMo: <strong style="color:var(--text-primary);">0901 234 567</strong></div>
+          <div style="margin-top:12px;" id="momoQr"><div style="width:160px;height:160px;margin:0 auto;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:3rem;">💜</div></div>
+        </div>
+      </div>
+
+      <div id="cashSection" style="display:none;padding:16px;background:rgba(34,197,94,0.08);border-radius:var(--radius-md);border:1px solid rgba(34,197,94,0.2);">
+        <div style="text-align:center;">
+          <div style="font-size:2.5rem;margin-bottom:8px;">💵</div>
+          <div style="font-weight:700;">Thanh toán tại quầy</div>
+          <div style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;">Vui lòng đến sân trước 15 phút và mang theo mã đặt lịch để thanh toán tại quầy lễ tân.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit btn -->
+    <button class="btn btn-primary btn-lg w-full" id="confirmBtn" onclick="confirmBooking()">
+      ✅ Xác nhận đặt lịch
+    </button>
+  </div>
+
+  <!-- Right: Order summary -->
+  <aside>
+    <div class="glass-card order-card">
+      <div class="order-header">📋 Đơn hàng của bạn</div>
+      <div class="order-venue" id="orderVenue">
+        <div class="order-venue-icon" id="orderIcon">⏳</div>
+        <div>
+          <div style="font-weight:700;" id="orderVenueName">Đang tải...</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);" id="orderDate"></div>
+        </div>
+      </div>
+      <div class="order-slot-list" id="orderSlots"></div>
+      <div class="order-total">
+        <div>
+          <div style="font-weight:600;">Tổng cộng</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">Đã bao gồm VAT</div>
+        </div>
+        <div class="order-total-num gradient-text" id="orderTotal">0đ</div>
+      </div>
+
+      <!-- Countdown -->
+      <div class="divider"></div>
+      <div class="countdown-wrap">
+        <div class="countdown-label">⏳ Thời gian giữ slot</div>
+        <div class="countdown-timer" id="countdownTimer">10:00</div>
+        <div class="progress-bar-wrap" style="margin-top:10px;">
+          <div class="progress-bar-fill" id="countdownBar" style="width:100%;"></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ---- Confirmation Modal ---- -->
+<div class="modal-overlay hidden" id="confirmModal">
+  <div class="modal-box" style="max-width:560px;">
+    <div class="modal-header">
+      <h2 style="font-size:1.3rem;">🎉 Đặt lịch thành công!</h2>
+      <button class="modal-close" onclick="closeModal()" aria-label="Đóng">✕</button>
+    </div>
+
+    <div class="success-ticket" id="successTicket">
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:6px;">Mã đặt lịch của bạn</div>
+      <div class="ticket-code" id="ticketCode">SB-000000</div>
+      <div class="ticket-meta" id="ticketMeta"></div>
+    </div>
+
+    <div style="margin:20px 0;text-align:center;">
+      <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">📱 Mã QR Check-in – Xuất trình khi đến sân</div>
+      <div style="display:flex;justify-content:center;">
+        <div style="background:#fff;border-radius:var(--radius-md);padding:16px;display:inline-block;">
+          <canvas id="ticketQrCanvas" width="180" height="180"></canvas>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Mã hợp lệ cho đến khi check-in</div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:4px;">
+      <button class="btn btn-ghost w-full" onclick="downloadTicket()">⬇️ Tải vé</button>
+      <button class="btn btn-primary w-full" onclick="closeModal();window.location.href='/index.html'">📅 Đặt lịch khác</button>
+    </div>
+  </div>
+</div>
+
+<!-- QRious CDN for QR generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="/js/checkout.js"></script>
+</body>
+</html>
